@@ -1,0 +1,576 @@
+---
+title: "Data Science Capstone Project Report"
+output: word_document
+---
+
+## 1. Introduction
+
+The is is the report for the capstone project in the Data Science specialization from Johns Hopkins University via Coursera.
+The data for the project come from Yelp, which is a business founded in 2004 to "help people find great local businesses like dentists, hair stylists and mechanics." As of the second quarter of 2015, Yelp had a monthly average of 83 million unique visitors who visited Yelp via their mobile device and written more than 83 million reviews.
+Within Yelp, users rate business with 1 to 5 stars, and also write their own text reviews and provide text tips. There is also a meta-review system from which users can vote on other user's reviews, like other users, be fans and friends.
+
+Yelp collects many different forms of data for a particular business. In this project we analyze five data sets provided for download in JSON format. The data sets have a naming convention characterized by the following words describing the particular nature of the information provided: “business”, “checkin”, “review”, tip”, “user”
+
+###### __Reading the Data__
+
+The data are read into the R environment using the jsonlite package. They are structured as data frames with nested data frames and lists as elements. We use the stream_in|() function to read the data and then the flatten() function to flatten nested data frames.
+
+We now have five data sets with the following names and dimensions:
+```{r, echo=FALSE, cache=TRUE}
+library(doMC, warn.conflicts = F, quietly = T, verbose = F)
+registerDoMC(cores = 2)
+library(data.table, warn.conflicts = F, quietly = T, verbose = F)
+library(dplyr, warn.conflicts = F, quietly = T, verbose = F)
+library(stringr, warn.conflicts = F, quietly = T, verbose = F)
+library(lubridate, warn.conflicts = F, quietly = T, verbose = F)
+
+load("~/ds-capstone/read_data.RData") # load the data from previous step (data tranformed to R objs)
+#---------------------------------------------------------------------------------------------------
+
+#------------------ Functions used will be dded here -------------------------
+list2vec <- function(listIn){
+  # IN: a recursive list with lists elements of length=1; OUT: a Vector  
+  n <- length(listIn)
+  vec <- c()
+  for(i in 1:n) vec[i] <- ifelse(!is.null(listIn[[i]]), vec[i] <- listIn[[i]], NA)
+  return (vec)
+}
+
+
+## ---------------------------------------------------------------------------
+
+# Convert to data.table format and Set keys
+business <- data.table(business)
+checkin <- data.table(checkin)
+review <- data.table(review)
+tip <- data.table(tip)
+user <- data.table(user)
+```
+* business, 61184 observations of 105 variables
+* checkin, 45166  observations of 170 variables
+* review, 1569264 observations of 10 variables
+* tip, 495107 observations of 6 variables
+* user, 366715 observations of 23 variables
+
+```{r, echo=FALSE, cache=TRUE}
+#   Drop some unneeded columns
+business[, type := NULL]
+checkin[, type := NULL]
+review[, type := NULL]
+tip[, type := NULL]
+user[, type := NULL]
+
+#   Manipulations- Elementary
+
+## TABLE ----> business
+names(business) <- str_replace(names(business), "attributes.", "") # simplify columns names
+names(business) <- str_replace_all(names(business), " ", "")
+# 1st unlist all elements that are lists
+business[, AcceptsCreditCards := sapply(AcceptsCreditCards, unlist)]
+# 2nd apply the function list2vec
+business[, AcceptsCreditCards := list2vec(AcceptsCreditCards)]
+
+# reorder columns
+setcolorder(business, 
+    c(1, 4, 7, 2, 5, 9, 12, 10, 8, 11, 3, 6, 17, 16, 13, 19, 18, 21, 20, 15, 14, 25, 24, 23, 22, 26:104))
+
+## TABLE ----> checkin
+names(checkin) <- str_replace_all(names(checkin), " ", "")
+
+## TABLE ----> review
+names(review) <- str_replace_all(names(review), " ", "")
+
+## TABLE ----> tip
+names(tip) <- str_replace_all(names(tip), " ", "")
+
+## TABLE ----> user
+names(user) <- str_replace_all(names(user), " ", "")
+
+# load a list of the US postal codes from an external csv file
+US.Postal.codes <- read.csv("~/ds-capstone/diafora/US Postal codes.csv", sep="")
+US.Postal.codes <- unlist(US.Postal.codes)
+US.Postal.codes <- as.vector(US.Postal.codes)
+state <- unique(business$state)
+nonUS <- state[! state %in% US.Postal.codes]
+nonUScities <- unique(business$city[business$state %in% nonUS]) # not all cities are in US
+rm(US.Postal.codes, state, nonUS)
+
+#______________________________________________________________________________#
+
+# At this point I will ignore the checkin data set as non essentially informative
+rm(checkin)
+```
+
+###### __Data Description __
+
+__business__, holds business records in the form
+'type': 'business',
+'business_id': (encrypted business id),
+'name': (business name),
+'neighborhoods': [(hood names)],
+'full_address': (localized address),
+'city': (city),
+'state': (state),
+'latitude': latitude,
+'longitude': longitude,
+'stars': (star rating, rounded to half-stars),
+'review_count': review count,
+'categories': [(localized category names)]
+'open': True / False
+… etc.
+
+__checkin__, holds checkin information
+
+__review__, holds business reviews information in the form
+'type': 'review',
+'business_id': (encrypted business id),
+'user_id': (encrypted user id),
+'stars': (star rating, rounded to half-stars),
+'text': (review text),
+'date': (date, formatted like '2012-03-14'),
+'votes': {(vote type): (count)}
+
+__tip__: holds users tip information in the form
+'type': ''tip',
+'business_id': (encrypted business id),
+'text': (tip text),
+'likes': {(user likes): (count)}
+date': (date, formatted like '2012-03-14'),
+'user_id': (encrypted user id)
+
+__user__: holds user information
+’type’: ’user’,
+’user_id’: (encrypted user id),
+’name’: (first name),
+’review_count’: (review count),
+’average_stars’: (floating point average, like 4.31),
+’votes’: {(vote type): (count)}
+
+We follow some data wrangling steps to get the data in more suitable format for our analysis. The data sets are transformed to data.table format. 
+We use the libraries: data.table, dplyr, stringr, lubridate. 
+The steps performed are:
+* drop from the data sets the variable 'type' as it provides no information.
+* covert all data frames to data.table objects in R.
+* simplify all variable names in the data sets to make them more readable
+* flatten some variables, that are lists to vectors
+* reorder columns
+* download US postal codes as a csv and identify based on that the non US locations
+
+We will not use the checkin dataset in our analysis.
+
+###### __Primary Question Asked__
+
+In the context of this assignment we will deal with the business rating as reported in the business dataset by the variable "stars". Specifically we will try to build a predictive model for rating business based on data from the other datasets provided like "reviews" , "tips" and "users". We will try to use numerical and categorical data and also extract some useful information from the text data provided engineering new features, to provide a predictive model. The model will be trained and evaluated for the subset of businesses in Edinburgh city, in order to scale down the amount of data processed to a coherent dataset with reviews referring to a common geographical point.
+
+We therefore isolate the observations related to Edinburgh from all our data sets by filtering related observations and we work further with the new data sets to extract features. 
+```{r, echo=FALSE, cache=TRUE}
+# focus on city of Edinburgh and area around it (?)
+setkey(business, city)
+
+i <- grep("Edinburgh", nonUScities)
+rm(i)
+Edinburgh_business <- business["Edinburgh"]
+City_of_Edinburgh <- business["City of Edinburgh"]; #dim(City_of_Edinburgh)
+#City_of_Edinburgh$business_id %in% Edinburgh_business$business_id
+Edinburgh_City_of <- business["Edinburgh City of"]; #dim(Edinburgh_City_of)
+#Edinburgh_City_of$business_id %in% Edinburgh_business$business_id
+# include these two into Edinburgh dataset
+Edinburgh_business <- rbind(Edinburgh_business, City_of_Edinburgh)
+Edinburgh_business <- rbind(Edinburgh_business, Edinburgh_City_of)
+rm(City_of_Edinburgh, Edinburgh_City_of)
+
+#dim(Edinburgh_business)
+
+# which columns have no value at all
+i <- which(apply(Edinburgh_business, 2, function(x){sum(is.na(x))}) == dim(Edinburgh_business)[1])
+Edinburgh_business[, c(names(Edinburgh_business)[i]) := NULL]; rm(i)
+#dim(Edinburgh_business)
+ # remove closed
+Edinburgh_business <- Edinburgh_business[Edinburgh_business$open]
+#dim(Edinburgh_business)
+Edinburgh_business[, open := NULL]
+
+# in Edinburgh_business the state column has no meaning for me so drop it, along with full address, 
+## city as it will be Edinburgh ofcourse.
+Edinburgh_business[, c("full_address", "city", "state") := NULL]
+
+
+# get reviews for Edinburgh
+Edinburgh_reviews <- review %>% filter(business_id %in% Edinburgh_business$business_id)
+Edinburgh_users <- user %>% filter(user$user_id %in% Edinburgh_reviews$user_id)
+Edinburgh_tip <- tip %>% filter(tip$business_id %in% Edinburgh_business$business_id)
+rm(business, review, tip, user)
+
+# manipulate Edinburgh_reviews
+Edinburgh_reviews[, "votes" := votes.funny + votes.useful + votes.cool] # add a column which sums all reviews
+Edinburgh_reviews[, c("votes.funny", "votes.cool", "votes.useful") := NULL]
+Edinburgh_reviews$date <- lubridate::ymd(Edinburgh_reviews$date)
+
+# manipulate Edinburgh_users
+# In columns friends, replace the friends user_ids with a count of the friends the user has
+Edinburgh_users[, friends := sapply(friends, length)]
+# consolidate vote types into a single column
+Edinburgh_users[, "votes" := votes.funny + votes.useful + votes.cool]
+# further drop columns not to be used
+Edinburgh_users[, c("votes.funny", "votes.cool", "votes.useful", "name", "elite") := NULL]
+## complete yelping day as 01 to use lubridate::ymd
+Edinburgh_users[, yelping_since := paste(yelping_since, "-01", sep = "")]
+Edinburgh_users$yelping_since <- lubridate::ymd(Edinburgh_users$yelping_since)
+# consolidate all compliments in Edinburgh_users into one column. Replace NAs with 0
+i <- grep("compliment", names(Edinburgh_users), ignore.case = T)
+Edinburgh_users[, "compliments" := sum(i)]
+Edinburgh_users[, c(names(Edinburgh_users)[i]) := NULL]; rm(i) # remove all compliment.type columns
+
+# manipulate Edinburgh_tip
+Edinburgh_tip$date <- lubridate::ymd(Edinburgh_tip$date)
+
+# interested in reviews for businesses in Edinburgh_business (after filtering out closed ones)
+Edinburgh_reviews <- Edinburgh_reviews %>% filter(business_id %in% Edinburgh_business$business_id)
+## no change there are all included
+
+# re-order columns
+setcolorder(Edinburgh_reviews, c("date", "review_id", "user_id", "business_id", "text", "stars", "votes"))
+setcolorder(Edinburgh_tip, c("date", "user_id", "business_id", "text", "likes"))
+
+# time ordering of data
+setkey(Edinburgh_tip, date)
+setkey(Edinburgh_reviews, date)
+setkey(Edinburgh_users, yelping_since)
+
+
+categories <- unique(unlist(Edinburgh_business$categories))
+# transform categories columns to a numeric vector with the number of the categories a business falls in
+Edinburgh_business[, categories := lapply(Edinburgh_business$categories, length)]
+
+rm(nonUScities)
+rm(categories)
+rm(list2vec)
+```
+
+## 2. Methods
+
+###### __Features manipulation and construction__
+
+We now work on four data sets refering to Edinburgh businesses, reviews for them, tips for them, and users referrring to them in reviews and tips.
+```{r, echo=FALSE, cache=TRUE}
+## get some info from users
+##
+setcolorder(Edinburgh_users, 
+            c('user_id', 'yelping_since', 'review_count', 'friends', 'fans', 'average_stars', 'votes', 'compliments'))
+Edinburgh_users <- Edinburgh_users %>% rename(user_votes = votes)
+
+setkey(Edinburgh_users, yelping_since) # order from start yelping date
+Edinburgh_users[, yelping_yrs := as.duration(yelping_since - yelping_since[1])]
+Edinburgh_users[, yelping_yrs := as.numeric(yelping_yrs / (60 * 60 * 24 * 365))]
+Edinburgh_users[, yelping_since := NULL] # remove yelping_sice
+Edinburgh_users[, compliments := NULL] # compliments columns has zero variance, so removed
+
+
+#summary(Edinburgh_users)
+
+#####     Construct features
+## in reviews (dat1)
+setkey(Edinburgh_reviews, business_id) #order by business_id
+setcolorder(Edinburgh_reviews, c("business_id", "review_id", "user_id", "text", "stars", "votes", "date"))
+Edinburgh_reviews <- Edinburgh_reviews %>% rename(review_votes = votes)
+
+#summary(Edinburgh_reviews)
+
+
+#length(unique(Edinburgh_reviews$business_id)) # not all businesses have reviews
+
+## do a full join of Edinburgh_reviews with Edinburgh_users, by user_id
+reviews <- dplyr::full_join(Edinburgh_reviews, Edinburgh_users, by = "user_id")
+reviews <- as.data.table(reviews)
+
+#---------------------  Ivestigate Text Language ---------------------------------
+library(textcat)
+
+nonEng <- which(textcat(reviews$text) != "english" & textcat(reviews$text) != "scots")
+langs <- textcat(reviews$text[nonEng])
+#table(langs)
+
+names(nonEng) <- langs
+nonEngText <- reviews$text[nonEng]
+
+# by eyebolling the following are in English (wrongly categorized)
+en <- c(1, 5, 18, 26, 31, 33, 40, 44, 46, 48, 62, 77, 82, 86, 99, 113, 119, 125, 127, 133, 151, 154, 165,
+        166, 172, 190, 199, 203, 204, 212, 218, 221, 226, 230, 249, 252, 260, 264, 288, 290, 293, 304)
+
+nonEng <- nonEng[- en] # extract actual non English
+reviews$text[nonEng] <- ""
+
+#----------------------
+reviews_data <- reviews[, .(number_of_reviews = length(review_id), 
+                                 review_stars_avg = mean(stars),
+                                 user_stars_avg = mean(average_stars),
+                                 review_text = stringr::str_c(text, collapse = TRUE), # join all text entries into one
+                                 friends = mean(friends),
+                                 fans = mean(fans),
+                                 yelping_yrs = mean(yelping_yrs),
+                                 review_votes_avg = mean(review_votes),
+                                 user_votes_avg = mean(user_votes),
+                                 num_yrs_reviewed = length(unique(year(date)))), 
+                             by = business_id]
+
+no_review <- dplyr::setdiff(Edinburgh_business$business_id, Edinburgh_reviews$business_id) # business with no review data
+no_review <- Edinburgh_business %>% filter(business_id %in% no_review) # get as subset
+
+dat1 <- data.frame(no_review$business_id, matrix(nrow = 139, ncol = 10, rep(0, 10 * 139)))
+names(dat1) <- names(reviews_data)
+dat1 <- rbind(reviews_data, dat1)
+rm(reviews_data, no_review)
+#dim(dat1)
+
+## in tip (dat2)
+#length(unique(Edinburgh_tip$business_id))
+tip_data <- Edinburgh_tip[, .(number_of_tips = length(text),
+                              tip_text = stringr::str_c(text, collapse = TRUE),
+                              likes_avg = mean(likes),
+                              num_years_tiped = length(unique(year(date)))), 
+                          by = business_id]
+no_tip <- dplyr::setdiff(Edinburgh_business$business_id, Edinburgh_tip$business_id) # business with no tip data
+no_tip <- Edinburgh_business %>% filter(business_id %in% no_tip) # get as subset
+dat2 <- data.frame(no_tip$business_id, matrix(nrow = 1477, ncol = 4, rep(0, 4 * 1477)))
+names(dat2) <- names(tip_data)
+dat2 <- rbind(tip_data, dat2)
+rm(tip_data, no_tip)
+#dim(dat2)
+
+# garbage
+rm(en, langs, nonEng, nonEngText, reviews, Edinburgh_business, Edinburgh_reviews, Edinburgh_tip, Edinburgh_users)
+```
+
+We perform several processing step further in ou data sets. Namely, 
+
+* We focus only on businesses characterized as 'open', so we remove 'closed' entries from the business data set.
+* We drop meaningless variables like, full address, city and state as we are focusing on Edinburgh.
+* In the reviews dataset we construct a new variable called 'votes' that is the sum of all votes categories (funny, useful and cool).
+* We manipulate dates where present (with lubridate package) to bring them into the format: year/month/day.
+* For the variable 'yelping since', the day is missing so we use the first day of each month as the day the user registered (makes no importance). The values are then trnasformed into a duration in years.
+* Time variables yelping_since are trnasformed to number of years the user is yelping (duration).
+* We consolidate all compliments in Edinburgh users, into one column and replace NAs with 0.
+* We transform categories columns to a numeric vector with the number of the categories a business falls in.
+* We reset variables names to reflect our changes and reorder the columns.
+
+We have to group data together into a common data frame of features. For this we have to merge reviews texts that refer to the same business_id and also merge tips text that corresponds to the same business.
+We further use the mean value for deriving a single number from multiple observations referring to the same business.
+There is a number of businesses that have now observations; that means the observations are of value 0.
+
+We thus, construct two datsets named dat1 and dat2, that have a number of variables and dat1 holds the reviews text and dat2 holds the tips text.
+
+####### __Extract Numerical Features from Text__
+
+The next step will be to extract numerical features from text fields and derive a final dataset in a form suitable for putting it through a prediction algorithm.
+We use the R __tm__ package to do text processing. Specifically for the reviews text we remove special characters, punctuation, numbers, we transform all letters to lower and remove English stop words. We then stem the documents, strip the witespaces produced and keep it as a plain text document.
+
+Next we use the __tm.lexicon.GeneralInquirer__ library to construct numerical scores for positive and negative occurences of words and we use the difference score (numerical) to replace the text as feature in our dataset.
+
+For the tips text, we use a Document Term Matrix to measure frequencies of specific words like "good", "great", "nice", "like", "love", "best", "epic", "delicious", "mmm", "wow", "awesome", "cool" and use this frequency as the numerical fetaure to replace the plain text.
+
+```{r, echo=FALSE,cache=TRUE}
+# Extract features from Text ...
+library(tm, warn.conflicts = F, quietly = T, verbose = F)
+library(SnowballC, warn.conflicts = F, quietly = T, verbose = F)
+
+# work with dat1 ----> review_text
+docs1 <- VCorpus(VectorSource(dat1$review_text))
+#length(docs1)
+## inspect sample entry
+#inspect(docs1[1])
+#docs1[[1]]$content
+#docs1[[1]]$meta
+
+f <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+
+docs1 <- tm_map(docs1, f, "\\n")
+docs1 <- tm_map(docs1, removePunctuation, TRUE) # remove punc. keep inter-words dashes
+docs1 <- tm_map(docs1, f, "-") # replace dashes with space
+docs1 <- tm_map(docs1, removeNumbers)
+docs1 <- tm_map(docs1, content_transformer(tolower))
+docs1 <- tm_map(docs1, removeWords, stopwords("english"))
+
+# stemming
+docs1 <- tm_map(docs1, stemDocument)
+docs1 <- tm_map(docs1, stripWhitespace)
+docs1 <- tm_map(docs1, PlainTextDocument)
+
+# edit metadata
+for ( i in 1:dim(dat1)[2]){
+  docs1[[i]]$meta$id <- i
+  docs1[[i]]$meta$description <- "Reviews for Edinburgh places"
+  docs1[[i]]$meta$language <- "English"
+}
+
+##  Test for positive and negative sentiments
+    # install.packages("tm.lexicon.GeneralInquirer", repos="http://datacube.wu.ac.at", type="source")
+library("tm.lexicon.GeneralInquirer", warn.conflicts = F, quietly = T, verbose = F)
+
+score_pos <- sapply(docs1, tm_term_score, terms_in_General_Inquirer_categories("Positiv"))
+score_neg <- sapply(docs1, tm_term_score, terms_in_General_Inquirer_categories("Negativ"))
+
+sc1 <- score_pos - score_neg 
+
+# replace text in dat1 with sentimel score
+dat1[, review_text := sc1]  
+
+###### work with tip text in dat2
+docs2 <- VCorpus(VectorSource(dat2$tip_text))
+#length(docs2)
+
+docs2 <- tm_map(docs2, f, "\\n")
+docs2 <- tm_map(docs2, removePunctuation, TRUE) # remove punc. keep inter-words dashes
+docs2 <- tm_map(docs2, f, "-") # replace dashes with space
+docs2 <- tm_map(docs2, removeNumbers)
+
+docs2 <- tm_map(docs2, f, "TRUE")
+
+docs2 <- tm_map(docs2, content_transformer(tolower))
+docs2 <- tm_map(docs2, removeWords, stopwords("english"))
+
+# stemming
+# docs2 <- tm_map(docs2, stemDocument)
+docs2 <- tm_map(docs2, stripWhitespace)
+docs2 <- tm_map(docs2, PlainTextDocument)
+
+# edit metadata
+for ( i in 1:dim(dat2)[2]){
+  docs2[[i]]$meta$id <- i
+  docs2[[i]]$meta$description <- "Tips given for Edinburgh places"
+  docs2[[i]]$meta$language <- "English"
+}
+
+terms <- c("good", "great", "nice", "like", "love", "best", "epic", "delicious", "mmm", "wow", "awesome", "cool")
+
+dtm_docs2 <- DocumentTermMatrix(docs2)
+sc2 <- tm_term_score(dtm_docs2, terms, slam::row_sums)
+
+# replace text in dat2 with sentimel score
+dat2[, tip_text := sc2]  
+
+### Combine dat1 and dat2 into my FULL DATASET named D
+#sum(dat2$business_id %in% dat1$business_id)
+setkey(dat1, business_id)
+setkey(dat2, business_id)
+D <- dplyr::full_join(dat1, dat2, by = "business_id")
+D <- as.data.table(D)
+setcolorder(D, neworder = c(1, 3, 2, 4:15))
+# drop business_id as it is not needed in predictions
+D[, business_id := NULL]
+
+# transform response variable (Stars) to a factor with levels 1, 2, 3, 4, 5 and rename it to stars
+D[, Stars := as.factor(round(review_stars_avg, 0))]
+D[, review_stars_avg := NULL]
+
+# remove garbage
+  # rm(i, terms, sc1, sc2, f, score_pos, score_neg, docs1, docs2, dtm_docs2, dat1, dat2)
+##########
+```
+
+We finally join together the dat1 and dat2 data sets and produce a factor for our response varibale Stars. The final dataset called _D_, has the following structure:
+```{r, echo=FALSE, cache=TRUE}
+str(D)
+```
+
+We will use this dataset to try and train a predictive model and evaluate the effectiveness of our approach.
+
+######__2.3 Exploratory Analysis__
+
+We have now a dataset with 2686 observations and 13 predictors. We will do some useful plots to get a grasp of the quality of our data and predictors.
+
+We use the _psych_ and _ggplot2_ packages to do at first a correlation plot, shown next.
+```{r, echo=FALSE, cache=TRUE}
+library(ggplot2, warn.conflicts = F, quietly = T, verbose = F)
+library(gridExtra, warn.conflicts = F, quietly = T, verbose = F)
+library(cowplot, warn.conflicts = F, quietly = T, verbose = F)
+library(psych, warn.conflicts = F, quietly = T, verbose = F)
+
+DATA <- D
+#DATA <- mutate(train_data, Stars = training$Stars) # data to plot on
+predictors <- names(DATA)[-14]
+# ---------------- -Correlations -----------------------
+pairs.panels(DATA, jiggle = T, scale = T, pch = ".", ellipses = F, gap = 0.1, main = "Pairs correlation plot", cex.main = 0.6)
+```
+We see a high correlation between fans and friends predictors, but we will keep all predictors with correlation about so and less. The distributions of the predictors are also not very promising and this is expected because of the nature of the data.
+
+Let's see the density plots of the predictors per response class.
+```{r, echo=FALSE, cache=TRUE}
+density_plot<- function(s){
+  ggplot(data = DATA, aes_string(s)) + geom_density(aes(color = Stars)) + theme_bw()
+}
+
+g <- lapply(predictors, density_plot) 
+grid.arrange(g[[1]], g[[2]], g[[3]], g[[4]], g[[5]], g[[6]], g[[7]], g[[8]], g[[9]], g[[10]], g[[11]], g[[12]], g[[13]],
+             ncol = 4, nrow = 4)
+```
+
+We see that not all predictors have significant variations, so not all of them are promising for separating our classes.
+Predictors like, *number_of_tips*, *num_years_tiped*,*tip_text*, *likes_average* suffer from very high skeweness because of the many 0 values introduced. 
+
+Finally we can do boxplots to see in more detail the distributions of the predictors. This diagram gives about the same information as the density plots. 
+```{r, echo=FALSE, cache=TRUE}
+box_plot <- function(s){
+  title <- paste("Predictor = ", s)
+  ggplot(DATA, aes_string(x = 'Stars', y = s)) +
+    geom_boxplot(aes(fill = Stars)) +
+    ggtitle(title) + 
+    theme_bw()
+}
+g <- lapply(predictors, box_plot)
+
+grid.arrange(g[[1]], g[[2]], g[[3]], g[[4]], g[[5]], g[[6]], g[[7]], g[[8]], g[[9]], g[[10]], g[[11]], g[[12]],
+             ncol = 4, nrow = 4)
+```
+
+We could argue that we could do more value cleansing, deleting values about certain value levels, remove zero values and apply transformations to cope with skeweness. However the data do not show to have some particular structure that would be promising for applying a predictive model and is expected as we would like to predict based on arbitrary human input about differing businesses. 
+
+## 3. Results
+
+We proceed to apply our predictive model and see what kind of accuracy we can get from this. We preprecess the data by sentering by mean and scaling the data.
+
+We train a random forest model using the package __randomForest__ and we are able to get an accuracy of over 63% in our predictions which is not bad for this datset. 
+```{r, echo=FALSE, cache=TRUE}
+D <- tbl_df(D)
+
+### Prediction models ###
+library(caret, warn.conflicts = F, quietly = T, verbose = F)
+library(party, warn.conflicts = F, quietly = T, verbose = F)
+library(partykit, warn.conflicts = F, quietly = T, verbose = F)
+library(randomForest, warn.conflicts = F, quietly = T, verbose = F)
+
+### Data Sclicing
+# Response variable "Stars" in D$Stars
+inTrain <- createDataPartition(D$Stars, p = .75, list = FALSE)
+training <- D[inTrain, ]
+testing <- D[-inTrain, ]
+####
+
+## Preprocessing
+preObj <- preProcess(training[, - 14], method = c("center", "scale"))
+#preObj <- preProcess(training[, -14], method = "pca", pcaComp = 8, thresh = 0.99)
+training_proc <- predict(preObj, training[, - 14])
+testing_proc <- predict(preObj, testing[, - 14])
+
+# Use this data for training
+train_data <- training_proc
+
+###### Random Forest
+rf <- randomForest(training$Stars ~., data = train_data, importance = T, mtry = 2)
+#rf
+
+model2 <- predict(rf, testing_proc)
+confusion <- confusionMatrix(testing$Stars, model2)
+confusion$overall
+```
+
+The variable importance plot agrees with the visual conclusions about our predictors.
+```{r, echo=FALSE, cache=TRUE}
+varImpPlot(rf, type = 2, col = "blue", pch = 19, cex = 0.9, main ="Variable Importance plot")
+```
+
+## 4. Discussion
+
+We used several feature transformations in the predictive process like log scale transformations of variables, different scoring functions and a number of predictors including rpart, gbm and ctree. There were minor accuracy differences from the described above so we stay with the random forest model. 
+Possible generation of more features including more advanced techniques in extracting features from text will furthe improve accuracy and strengthen the model stability. 
+
+
