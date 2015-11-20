@@ -247,7 +247,7 @@ rm(categories)
 rm(list2vec)
 ```
 
-## 2. Methods
+## 2. Methods and Data
 
 ###### __Features manipulation and construction__
 
