@@ -1,0 +1,92 @@
+Data Science Specialization: Capstone Project
+=============================================
+transition: concave
+
+
+- Data, Yelping Data Set
+- Format,  JSON files
+- Files,  {business, checkin, review, tip, user}
+
+
+Introduction
+==============================================
+<small>
+Five Data sets were imported into R and were processed to derive useful information.
+
+For this data a primary question was asked.
+
+In the context of this assignment we will deal with the business rating as reported in the business dataset by the variable "stars". Specifically we will try to build a predictive model for rating business based on data from the other datasets provided like "reviews" , "tips" and "users". We will try to use numerical and categorical data and also extract some useful information from the text data provided engineering new features, to provide a predictive model. The model will be trained and evaluated for the subset of businesses in Edinburgh city, in order to scale down the amount of data processed to a coherent dataset with reviews referring to a common geographical point.
+</small>
+
+Methods and Data (1/2)
+===============================================
+<small>
+A number of Data transformations were applied on the datsets to derive a final dataset with useful features.
+- The original data were filtered for the Edinburgh city. 
+- Time data were extracted from string format.
+- Text data were merged per business of reference.
+- Features were extracted from text.
+- All data for Edinburgh were merged into a tidy data set.
+
+</small>
+
+Methods and Data (2/2)
+======================================================
+<small>
+Boxplot of predictors: ![Boxplots](/home/gimin/ds-capstone/Figures/Boxplots_wide.jpeg)
+
+From this plot we see that we don't have strong predictors for classifying our data so we don't expect very high prediction accuracy.
+This is expected as e are dealing with user inputs and arbitrary features extracrion.
+</small>
+
+Results & Discussion
+===================================================
+<small>
+```{r, echo=FALSE, cache = TRUE, message = FALSE}
+library(doMC)
+registerDoMC(cores = 2)
+library(plyr)
+library(dplyr)
+
+load("~/ds-capstone/D.RData") # load data set
+D <- tbl_df(D)
+### Prediction models ###
+library(caret, warn.conflicts = F, quietly = T, verbose = F)
+library(party, warn.conflicts = F, quietly = T, verbose = F)
+library(partykit, warn.conflicts = F, quietly = T, verbose = F)
+library(randomForest)
+
+### Data Sclicing
+# Response variable "Stars" in D$Stars
+inTrain <- createDataPartition(D$Stars, p = .75, list = FALSE)
+training <- D[inTrain, ]
+testing <- D[-inTrain, ]
+####
+labelName <- "Stars"   # response variable to predict
+predictors <- names(D)[names(D) != labelName] # the names of predictor variables
+
+## Preprocessing
+preObj <- preProcess(training[, predictors], method = c("center", "scale"))
+#preObj <- preProcess(training[, -14], method = "pca", pcaComp = 8, thresh = 0.99)
+training_proc <- predict(preObj, training[, predictors])
+testing_proc <- predict(preObj, testing[, predictors])
+train_data <- training_proc
+rf <- randomForest(training$Stars ~., data = train_data, importance = T, mtry = 2)
+model2 <- predict(rf, testing_proc)
+```
+
+```{r, echo=FALSE,tidy=TRUE}
+con <- as.list(caret::confusionMatrix(testing$Stars, model2))
+# Model Metrics
+sprintf("Overall accuracy = %f", con$overall[1])
+sprintf("Kappa = %f", con$overall[2])
+```
+
+Possible generation of more features including more advanced techniques in extracting features from text will further improve accuracy and strengthen the model stability.
+
+</small>
+
+
+
+
+
