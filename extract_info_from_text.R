@@ -119,7 +119,7 @@ D[, Stars := as.factor(round(review_stars_avg, 0))]
 D[, review_stars_avg := NULL]
 
 # remove garbage
-  # rm(i, terms, sc1, sc2, f, score_pos, score_neg, docs1, docs2, dtm_docs2, dat1, dat2)
+rm(i, terms, sc1, sc2, f, score_pos, score_neg, docs1, docs2, dtm_docs2, dat1, dat2)
 ##########
 glimpse(D)
 

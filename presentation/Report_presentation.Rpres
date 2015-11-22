@@ -2,7 +2,6 @@ Data Science Specialization: Capstone Project
 =============================================
 transition: concave
 
-
 - Data, Yelping Data Set
 - Format,  JSON files
 - Files,  {business, checkin, review, tip, user}
@@ -15,7 +14,9 @@ Five Data sets were imported into R and were processed to derive useful informat
 
 For this data a primary question was asked.
 
-In the context of this assignment we will deal with the business rating as reported in the business dataset by the variable "stars". Specifically we will try to build a predictive model for rating business based on data from the other datasets provided like "reviews" , "tips" and "users". We will try to use numerical and categorical data and also extract some useful information from the text data provided engineering new features, to provide a predictive model. The model will be trained and evaluated for the subset of businesses in Edinburgh city, in order to scale down the amount of data processed to a coherent dataset with reviews referring to a common geographical point.
+In the context of this assignment we will deal with the business rating as reported in the business dataset by the variable "stars". 
+Specifically we will try to build a predictive model for rating businesses based on data from the other datasets provided like "reviews" , "tips" and "users". We will try to use numerical and categorical data and also extract some useful information from the text data provided, engineering new features, in order to train a predictive model. 
+The model will be trained and evaluated for the subset of businesses in Edinburgh city, in order to scale down the amount of data processed to a coherent dataset with reviews referring to a common geographical point.
 </small>
 
 Methods and Data (1/2)
@@ -32,15 +33,6 @@ A number of Data transformations were applied on the datsets to derive a final d
 
 Methods and Data (2/2)
 ======================================================
-<small>
-Boxplot of predictors: ![Boxplots](/home/gimin/ds-capstone/Figures/Boxplots_wide.jpeg)
-
-From this plot we see that we don't have strong predictors for classifying our data so we don't expect very high prediction accuracy.
-This is expected as e are dealing with user inputs and arbitrary features extracrion.
-</small>
-
-Results & Discussion
-===================================================
 <small>
 ```{r, echo=FALSE, cache = TRUE, message = FALSE}
 library(doMC)
@@ -75,6 +67,34 @@ rf <- randomForest(training$Stars ~., data = train_data, importance = T, mtry = 
 model2 <- predict(rf, testing_proc)
 ```
 
+```{r, echo=FALSE,cache=TRUE,fig.align='center',fig.height=12,fig.width=24}
+library(ggplot2, warn.conflicts = F, quietly = T, verbose = F)
+library(gridExtra, warn.conflicts = F, quietly = T, verbose = F)
+library(cowplot, warn.conflicts = F, quietly = T, verbose = F)
+library(psych, warn.conflicts = F, quietly = T, verbose = F)
+
+DATA <- D
+##------------------ boxplots --------------------------
+box_plot <- function(s){
+  title <- paste("Predictor = ", s)
+  ggplot(DATA, aes_string(x = 'Stars', y = s)) +
+    geom_boxplot(aes(fill = Stars)) +
+    ggtitle(title) + 
+    theme_bw()
+}
+g <- lapply(predictors, box_plot)
+
+grid.arrange(g[[1]], g[[2]], g[[3]], g[[4]], g[[5]], g[[6]], g[[7]], g[[8]], g[[9]], g[[10]], g[[11]], g[[12]], g[[13]],
+             ncol = 4, nrow = 4)
+```
+
+From this plot we see that we don't have strong predictors for classifying our data so we don't expect very high prediction accuracy.
+This is expected as we are dealing with user inputs and arbitrary features extracrion.
+</small>
+
+Results & Discussion
+===================================================
+<small>
 ```{r, echo=FALSE,tidy=TRUE}
 con <- as.list(caret::confusionMatrix(testing$Stars, model2))
 # Model Metrics
@@ -82,6 +102,7 @@ sprintf("Overall accuracy = %f", con$overall[1])
 sprintf("Kappa = %f", con$overall[2])
 ```
 
+Different predictive algorithms including ensemble methods gave an accuracy at best around 65%.
 Possible generation of more features including more advanced techniques in extracting features from text will further improve accuracy and strengthen the model stability.
 
 </small>
