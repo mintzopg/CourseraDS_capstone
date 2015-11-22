@@ -13,7 +13,7 @@ Yelp collects many different forms of data for a particular business. In this pr
 
 ###### __Reading the Data__
 
-The data are read into the R environment using the jsonlite package. They are structured as data frames with nested data frames and lists as elements. We use the stream_in|() function to read the data and then the flatten() function to flatten nested data frames.
+The data are read into the R environment using the jsonlite package. They are structured as data frames with nested data frames and lists as elements. We use the stream_in() function to read the data and then the flatten() function to flatten nested data frames.
 
 We now have five data sets with the following names and dimensions:
 ```{r, echo=FALSE, cache=TRUE}
@@ -341,14 +341,14 @@ rm(tip_data, no_tip)
 rm(en, langs, nonEng, nonEngText, reviews, Edinburgh_business, Edinburgh_reviews, Edinburgh_tip, Edinburgh_users)
 ```
 
-We perform several processing step further in ou data sets. Namely, 
+We perform several processing steps further in our data sets. Namely, 
 
 * We focus only on businesses characterized as 'open', so we remove 'closed' entries from the business data set.
 * We drop meaningless variables like, full address, city and state as we are focusing on Edinburgh.
 * In the reviews dataset we construct a new variable called 'votes' that is the sum of all votes categories (funny, useful and cool).
 * We manipulate dates where present (with lubridate package) to bring them into the format: year/month/day.
 * For the variable 'yelping since', the day is missing so we use the first day of each month as the day the user registered (makes no importance). The values are then trnasformed into a duration in years.
-* Time variables yelping_since are trnasformed to number of years the user is yelping (duration).
+* Time variables yelping_since are transformed to number of years the user is yelping (duration).
 * We consolidate all compliments in Edinburgh users, into one column and replace NAs with 0.
 * We transform categories columns to a numeric vector with the number of the categories a business falls in.
 * We reset variables names to reflect our changes and reorder the columns.
@@ -368,7 +368,7 @@ Next we use the __tm.lexicon.GeneralInquirer__ library to construct numerical sc
 
 For the tips text, we use a Document Term Matrix to measure frequencies of specific words like "good", "great", "nice", "like", "love", "best", "epic", "delicious", "mmm", "wow", "awesome", "cool" and use this frequency as the numerical fetaure to replace the plain text.
 
-```{r, echo=FALSE,cache=TRUE}
+```{r, echo=FALSE,cache=TRUE,warning=FALSE}
 # Extract features from Text ...
 library(tm, warn.conflicts = F, quietly = T, verbose = F)
 library(SnowballC, warn.conflicts = F, quietly = T, verbose = F)
@@ -467,7 +467,7 @@ D[, review_stars_avg := NULL]
 ##########
 ```
 
-We finally join together the dat1 and dat2 data sets and produce a factor for our response varibale Stars. The final dataset called _D_, has the following structure:
+We finally join together the dat1 and dat2 data sets and produce a factor for our response variable Stars. The final dataset called _D_, has the following structure:
 ```{r, echo=FALSE, cache=TRUE}
 str(D)
 ```
@@ -505,7 +505,7 @@ grid.arrange(g[[1]], g[[2]], g[[3]], g[[4]], g[[5]], g[[6]], g[[7]], g[[8]], g[[
 ```
 
 We see that not all predictors have significant variations, so not all of them are promising for separating our classes.
-Predictors like, *number_of_tips*, *num_years_tiped*,*tip_text*, *likes_average* suffer from very high skeweness because of the many 0 values introduced. 
+Predictors like, *number_of_tips*, *num_years_tiped*,*tip_text*, *likes_average* suffer from very high skewness because of the many 0 values introduced. 
 
 Finally we can do boxplots to see in more detail the distributions of the predictors. This diagram gives about the same information as the density plots. 
 ```{r, echo=FALSE, cache=TRUE}
@@ -526,7 +526,7 @@ We could argue that we could do more value cleansing, deleting values about cert
 
 ## 3. Results
 
-We proceed to apply our predictive model and see what kind of accuracy we can get from this. We preprecess the data by sentering by mean and scaling the data.
+We proceed to apply our predictive model and see what kind of accuracy we can get from this. We preprecess the data by centering by mean and scaling the data.
 
 We train a random forest model using the package __randomForest__ and we are able to get an accuracy of over 63% in our predictions which is not bad for this datset. 
 ```{r, echo=FALSE, cache=TRUE}
